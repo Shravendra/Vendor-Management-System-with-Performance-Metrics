@@ -1,9 +1,9 @@
 from rest_framework import status
 from rest_framework import generics
 from rest_framework.response import Response
-from .models import Vendor, PurchaseOrder, HistoricalPerformance
+from .models import Vendor, PurchaseOrder, HistoricalPerformance, PurchaseOrder
 from rest_framework.exceptions import ValidationError
-from .serializers import VendorSerializer, PurchaseOrderSerializer, HistoricalPerformanceSerializer
+from .serializers import VendorSerializer, PurchaseOrderSerializer, HistoricalPerformanceSerializer, AcknowledgePurchaseOrderSerializer
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
 
@@ -80,3 +80,27 @@ class VendorPerformanceView(generics.RetrieveAPIView):
         return Response(serializer.data)
 
 
+class AcknowledgePurchaseOrderView(generics.UpdateAPIView):
+    queryset = PurchaseOrder.objects.all()
+    serializer_class = AcknowledgePurchaseOrderSerializer
+    http_method_names = ['patch', 'post']
+
+    def acknowledge(self, instance):
+        if instance.status != 'Accepted':
+            return Response({"detail": "Purchase order is not in 'Accepted' status."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        instance.acknowledge()
+
+        # Recalculate average_response_time
+        instance.vendor.recalculate_metrics()
+
+        return Response({"detail": "Purchase order acknowledged successfully."}, status=status.HTTP_200_OK)
+
+    def post(self, request, *args, **kwargs):
+        instance = self.get_object()
+        return self.acknowledge(instance)
+    
+    def patch(self, request, *args, **kwargs):
+        instance = self.get_object()
+        return self.acknowledge(instance)

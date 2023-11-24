@@ -17,3 +17,5 @@ class HistoricalPerformanceSerializer(serializers.ModelSerializer):
         model = HistoricalPerformance
         fields = '__all__'
 
+class AcknowledgePurchaseOrderSerializer(serializers.Serializer):
+    acknowledgment_date = serializers.DateTimeField()

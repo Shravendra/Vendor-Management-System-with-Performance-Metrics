@@ -100,6 +100,14 @@ class PurchaseOrder(models.Model):
         # Update or create historical performance record after saving the purchase order
         if self.status == 'Completed' and self.vendor:
             self.vendor.recalculate_metrics()
+         
+    def acknowledge(self):
+        """
+        Method to handle acknowledgment of the purchase order.
+        """
+        if self.status == 'Accepted' and not self.acknowledgment_date:
+            self.acknowledgment_date = timezone.now()
+            self.save()
 
 
 class HistoricalPerformance(models.Model):
