@@ -8,7 +8,6 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
 
 
-
 class VendorListCreateView(generics.ListCreateAPIView):
     queryset = Vendor.objects.all()
     serializer_class = VendorSerializer
@@ -21,7 +20,6 @@ class VendorListCreateView(generics.ListCreateAPIView):
         except Exception as e:
             raise ValidationError(detail=str(e), code=status.HTTP_400_BAD_REQUEST)
     
-
 
 class VendorDetailsUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Vendor.objects.all()
