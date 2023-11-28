@@ -26,24 +26,21 @@ class Vendor(models.Model):
     def recalculate_metrics(self):
         completed_pos = PurchaseOrder.objects.filter(vendor=self, status='Completed')
 
-        # Calculate on-time delivery rate
+        # Calculate on-time delivery rate, quality rating average, average response time, and fulfillment rate
         total_completed_pos = completed_pos.count()
         self.on_time_delivery_rate = (
             completed_pos.filter(delivery_date__lte=F('acknowledgment_date')).count() / total_completed_pos
         ) * 100.0 if total_completed_pos > 0 else 0.0
 
-        # Calculate quality rating average
         quality_rating_sum = completed_pos.exclude(quality_rating__isnull=True).aggregate(sum=Sum('quality_rating'))['sum']
         quality_rating_count = completed_pos.exclude(quality_rating__isnull=True).count()
         self.quality_rating_avg = quality_rating_sum / quality_rating_count if quality_rating_count > 0 else 0.0
 
-        # Calculate average response time
         avg_response_time_seconds = completed_pos.exclude(acknowledgment_date__isnull=True).aggregate(
             average=Avg(F('acknowledgment_date') - F('issue_date'))
         )['average']
         self.average_response_time = avg_response_time_seconds.total_seconds() if avg_response_time_seconds else 0.0
 
-        # Calculate fulfillment rate
         total_po_count = PurchaseOrder.objects.filter(vendor=self).count()
         self.fulfillment_rate = (
             completed_pos.filter(status='Completed').count() / total_po_count
@@ -52,16 +49,32 @@ class Vendor(models.Model):
         self.save()
 
         # Update or create historical performance record
-        HistoricalPerformance.objects.update_or_create(
+        today = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Retrieve the existing historical performance record for today
+        historical_performance = HistoricalPerformance.objects.filter(
             vendor=self,
-            date=timezone.now(),
-            defaults={
-                'on_time_delivery_rate': self.on_time_delivery_rate,
-                'quality_rating_avg': self.quality_rating_avg,
-                'average_response_time': self.average_response_time,
-                'fulfillment_rate': self.fulfillment_rate,
-            }
-        )
+            date__gte=today,
+        ).first()
+
+        if historical_performance:
+            # Update the existing record
+            historical_performance.on_time_delivery_rate = self.on_time_delivery_rate
+            historical_performance.quality_rating_avg = self.quality_rating_avg
+            historical_performance.average_response_time = self.average_response_time
+            historical_performance.fulfillment_rate = self.fulfillment_rate
+        else:
+            # Create a new record
+            historical_performance = HistoricalPerformance(
+                vendor=self,
+                date=today,
+                on_time_delivery_rate=self.on_time_delivery_rate,
+                quality_rating_avg=self.quality_rating_avg,
+                average_response_time=self.average_response_time,
+                fulfillment_rate=self.fulfillment_rate,
+            )
+
+        historical_performance.save()
         
     def __str__(self):
         return self.name

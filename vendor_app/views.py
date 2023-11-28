@@ -63,19 +63,44 @@ class PurchaseOrderDetailsUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView
 
 
 class VendorPerformanceView(generics.RetrieveAPIView):
-    queryset = HistoricalPerformance.objects.all()
     serializer_class = HistoricalPerformanceSerializer
     permission_classes = [IsAuthenticated]
     authentication_classes = [TokenAuthentication]
     
+    def get_queryset(self):
+        vendor_id = self.kwargs['vendor_id']
+        return HistoricalPerformance.objects.filter(vendor__id=vendor_id)
+    
     def retrieve(self, request, *args, **kwargs):
-        try:
-            instance = self.get_object()
-        except Exception as e:
-            return Response({'detail': str(e)}, status=status.HTTP_404_NOT_FOUND)
+        queryset = self.get_queryset()
 
-        serializer = self.get_serializer(instance)
-        return Response(serializer.data)
+        # Calculate average values for each performance metric
+        total_entries = queryset.count()
+        if total_entries > 0:
+            total_on_time_delivery_rate = sum(entry.on_time_delivery_rate for entry in queryset)
+            total_quality_rating_avg = sum(entry.quality_rating_avg for entry in queryset)
+            total_average_response_time = sum(entry.average_response_time for entry in queryset)
+            total_fulfillment_rate = sum(entry.fulfillment_rate for entry in queryset)
+
+            average_on_time_delivery_rate = total_on_time_delivery_rate / total_entries
+            average_quality_rating_avg = total_quality_rating_avg / total_entries
+            average_average_response_time = total_average_response_time / total_entries
+            average_fulfillment_rate = total_fulfillment_rate / total_entries
+
+            # Create a new instance with the calculated averages
+            vendor_performance = HistoricalPerformance(
+                vendor=queryset.first().vendor,
+                date=queryset.first().date,
+                on_time_delivery_rate=average_on_time_delivery_rate,
+                quality_rating_avg=average_quality_rating_avg,
+                average_response_time=average_average_response_time,
+                fulfillment_rate=average_fulfillment_rate
+            )
+
+            serializer = self.get_serializer(vendor_performance)
+            return Response(serializer.data)
+        else:
+            return Response({'detail': 'No historical performance data available.'}, status=status.HTTP_404_NOT_FOUND)
 
 
 class AcknowledgePurchaseOrderView(generics.UpdateAPIView):
